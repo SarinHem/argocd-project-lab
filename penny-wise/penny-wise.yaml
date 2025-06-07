@@ -31,7 +31,7 @@ spec:
         image: sarindockerhub/penny-wise:latest  # Update with your actual Docker Hub image
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+        - containerPort: 3000
         # Only include environment variables your app actually needs
         # env:
         # - name: PORT
@@ -47,12 +47,12 @@ spec:
         # Basic health check using the port
         livenessProbe:
           tcpSocket:
-            port: 8080
+            port: 3000
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           tcpSocket:
-            port: 8080
+            port: 3000
           initialDelaySeconds: 5
           periodSeconds: 5
 
@@ -68,5 +68,5 @@ spec:
     app: penny-wise
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 3000
   type: NodePort  # Simple external access
