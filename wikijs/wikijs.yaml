@@ -1,0 +1,209 @@
+# Namespace for better organization
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wikijs
+  labels:
+    name: wikijs
+
+---
+# ConfigMap for environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wikijs-config
+  namespace: wikijs
+data:
+  DB_TYPE: "sqlite"
+  DB_FILEPATH: "/data/wikijs.db"
+  # Optimize Node.js memory usage
+  NODE_ENV: "production"
+  NODE_OPTIONS: "--max-old-space-size=128"
+
+---
+# Reduced PersistentVolume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: wikijs-pv
+  labels:
+    app: wikijs
+spec:
+  capacity:
+    storage: 2Gi  # Reduced from 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  hostPath:
+    path: /mnt/wikijs-data
+    type: DirectoryOrCreate
+
+---
+# Reduced PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wikijs-pvc
+  namespace: wikijs
+  labels:
+    app: wikijs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-storage
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# Optimized Deployment for low RAM usage
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wikijs
+  namespace: wikijs
+  labels:
+    app: wikijs
+    version: v1
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Use Recreate instead of RollingUpdate to save memory
+  selector:
+    matchLabels:
+      app: wikijs
+  template:
+    metadata:
+      labels:
+        app: wikijs
+        version: v1
+    spec:
+      # Add securityContext for proper file permissions
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      # Init container to fix permissions
+      initContainers:
+      - name: fix-permissions
+        image: busybox:1.35
+        command: ['sh', '-c', 'mkdir -p /data && chown -R 1000:1000 /data && chmod -R 755 /data']
+        volumeMounts:
+        - name: wikijs-data
+          mountPath: /data
+        securityContext:
+          runAsUser: 0  # Run as root to fix permissions
+      containers:
+      - name: wikijs
+        image: requarks/wiki:2.5
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        env:
+        - name: DB_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: wikijs-config
+              key: DB_TYPE
+        - name: DB_FILEPATH
+          valueFrom:
+            configMapKeyRef:
+              name: wikijs-config
+              key: DB_FILEPATH
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: wikijs-config
+              key: NODE_ENV
+        - name: NODE_OPTIONS
+          valueFrom:
+            configMapKeyRef:
+              name: wikijs-config
+              key: NODE_OPTIONS
+        volumeMounts:
+        - name: wikijs-data
+          mountPath: /data
+        # Container security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+        # Minimal resource allocation
+        resources:
+          requests:
+            memory: "128Mi"  # Reduced from 256Mi
+            cpu: "50m"       # Reduced from 100m
+          limits:
+            memory: "256Mi"  # Reduced from 512Mi
+            cpu: "200m"      # Reduced from 500m
+        # Simplified health checks with longer intervals
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 2
+      volumes:
+      - name: wikijs-data
+        persistentVolumeClaim:
+          claimName: wikijs-pvc
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: wikijs-service
+  namespace: wikijs
+  labels:
+    app: wikijs
+spec:
+  selector:
+    app: wikijs
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 3000
+  type: NodePort  # Changed back to NodePort for simple access
+  # Optionally specify a nodePort
+  # nodePort: 30080
+
+---
+# Simple Ingress (optional - only if you have an ingress controller)
+# Comment out this section if you don't need it
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: wikijs-ingress
+#   namespace: wikijs
+#   labels:
+#     app: wikijs
+#   annotations:
+#     kubernetes.io/ingress.class: "nginx"  # Adjust based on your ingress controller
+# spec:
+#   rules:
+#   - host: wiki.yourdomain.com  # Replace with your domain or remove for IP access
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: wikijs-service
+#             port:
+#               number: 80
+
+# Removed RBAC components, ServiceAccount, and NetworkPolicy to reduce overhead
