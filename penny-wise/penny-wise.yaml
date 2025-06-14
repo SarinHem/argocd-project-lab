@@ -72,6 +72,7 @@ spec:
     protocol: TCP
   type: ClusterIP     # Internal cluster access only
 apiVersion: networking.k8s.io/v1
+---
 kind: Ingress
 metadata:
   name: penny-wise-ingress
