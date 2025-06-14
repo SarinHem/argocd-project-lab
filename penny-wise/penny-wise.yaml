@@ -69,4 +69,4 @@ spec:
   ports:
   - port: 3000
     targetPort: 3000
-  type: NodePort  # Simple external access
+  type: ClusterIP  # Simple external access
