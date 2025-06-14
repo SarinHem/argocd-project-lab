@@ -57,7 +57,7 @@ spec:
           periodSeconds: 5
 
 ---
-#ingress
+# Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -67,30 +67,6 @@ spec:
   selector:
     app: penny-wise
   ports:
-  - port: 3000        # Service port (TCP)
-    targetPort: 3000  # Container port
-    protocol: TCP
-  type: LoadBalancer     # Internal cluster access only
----  
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: penny-wise-ingress
-  namespace: penny-wise
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-spec:
-  ingressClassName: nginx
-  rules:
-  - host: penny-wise.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: penny-wise-service
-            port:
-              number: 3000  
+  - port: 3000
+    targetPort: 3000
+  type: NodePort  # Simple external access
