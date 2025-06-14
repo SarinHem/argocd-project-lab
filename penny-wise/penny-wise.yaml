@@ -67,9 +67,10 @@ spec:
   selector:
     app: penny-wise
   ports:
-  - port: 3000
-    targetPort: 3000
-  type: ClusterIP  # Simple external access
+  - port: 3000        # Service port (TCP)
+    targetPort: 3000  # Container port
+    protocol: TCP
+  type: ClusterIP     # Internal cluster access only
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
